@@ -4,9 +4,10 @@ FROM python:3.9-slim AS builder
 # Informacja o autorze obrazu
 LABEL org.opencontainers.image.authors="Patryk Zygmunt"
 
-# Aktualizacja repozytoriów i instalacja kompilatora GCC
+# Aktualizacja repozytoriów i instalacja niezbędnych pakietów
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc && \
+    gcc \
+    curl && \
     rm -rf /var/lib/apt/lists/*
 
 # Ustawienie katalogu roboczego na /app
@@ -23,6 +24,11 @@ FROM python:3.9-slim
 
 # Informacja o autorze obrazu
 LABEL org.opencontainers.image.authors="Patryk Zygmunt"
+
+# Instalacja curl dla healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl && \
+    rm -rf /var/lib/apt/lists/*
 
 # Ustawienie katalogu roboczego na /app
 WORKDIR /app
