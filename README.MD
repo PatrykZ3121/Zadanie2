@@ -39,19 +39,16 @@ docker buildx build --platform linux/amd64,linux/arm64 -t weather-app:latest .
 Uruchomienie kontenera
 docker run -d -p 5000:5000 --name weather-app weather-app:latest
 
-text
 
 ### 2. Z GitHub Container Registry (GHCR)
 
 #### Pobranie obrazu:
 docker pull ghcr.io/twoja_nazwa_github/zadanie2:latest
 
-text
 
 #### Uruchomienie:
 docker run -d -p 5000:5000 ghcr.io/patrykz3121/zadanie2:latest
 
-text
 
 ---
 
@@ -60,22 +57,17 @@ text
 1. **Strona aplikacji:**
 http://localhost:5000
 
-text
 
 2. **Logi kontenera:**
 docker logs weather-app
 
-text
 
 3. **Status zdrowia:**
 docker inspect --format='{{.State.Health.Status}}' weather-app
 
-text
 
 4. **Weryfikacja architektury:**
 docker inspect --format='{{.Architecture}}' weather-app
-
-text
 
 ---
 
