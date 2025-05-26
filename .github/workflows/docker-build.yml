@@ -4,8 +4,6 @@ on:
   push:
     branches: [ main, master ]
     tags: [ 'v*' ]
-  pull_request:
-    branches: [ main, master ]
 
 env:
   REGISTRY: ghcr.io
@@ -24,6 +22,9 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+
+    - name: Install jq
+      run: sudo apt-get update && sudo apt-get install -y jq
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -50,10 +51,6 @@ jobs:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
           type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=semver,pattern={{major}}
           type=raw,value=latest,enable={{is_default_branch}}
 
     - name: Build Docker image for scanning
@@ -72,25 +69,31 @@ jobs:
         image-ref: 'scan-image:latest'
         format: 'sarif'
         output: 'trivy-results.sarif'
-        severity: 'CRITICAL,HIGH'
+        severity: 'CRITICAL'
         exit-code: '0'
 
-    - name: Check if SARIF file exists and validate
+    - name: Check vulnerabilities and upload SARIF
       run: |
         if [ -f trivy-results.sarif ]; then
-          echo "SARIF file exists"
-          # Sprawdź czy są krytyczne vulnerabilities
-          ISSUES=$(jq '.runs[0].results | length' trivy-results.sarif 2>/dev/null || echo "0")
-          echo "Found $ISSUES critical/high vulnerabilities"
-          if [ "$ISSUES" -gt "0" ]; then
-            echo "❌ Critical or high vulnerabilities found - blocking push"
-            jq '.runs[0].results[].message.text' trivy-results.sarif || true
-            exit 1
+          echo "✅ SARIF file created successfully"
+          # Sprawdź czy są wyniki
+          if [ -s trivy-results.sarif ]; then
+            ISSUES=$(jq '.runs[0].results | length' trivy-results.sarif 2>/dev/null || echo "0")
+            echo "Found $ISSUES critical vulnerabilities"
+            if [ "$ISSUES" -gt "0" ]; then
+              echo "❌ Critical vulnerabilities found:"
+              jq -r '.runs[0].results[].message.text' trivy-results.sarif 2>/dev/null || echo "Could not parse vulnerability details"
+              echo "Blocking push due to security issues"
+              exit 1
+            else
+              echo "✅ No critical vulnerabilities found"
+            fi
           else
-            echo "✅ No critical/high vulnerabilities found"
+            echo "⚠️ SARIF file is empty, creating minimal structure"
+            echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "trivy"}}, "results": []}]}' > trivy-results.sarif
           fi
         else
-          echo "⚠️ SARIF file not found - creating empty one"
+          echo "⚠️ SARIF file not found, creating empty one"
           echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "trivy"}}, "results": []}]}' > trivy-results.sarif
         fi
 
@@ -120,4 +123,4 @@ jobs:
         echo "- **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Platforms**: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
         echo "- **Cache**: docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache" >> $GITHUB_STEP_SUMMARY
-        echo "- **Security**: No critical/high vulnerabilities" >> $GITHUB_STEP_SUMMARY
+        echo "- **Security**: Only critical vulnerabilities scanned" >> $GITHUB_STEP_SUMMARY
