@@ -17,14 +17,10 @@ jobs:
       contents: read
       packages: write
       security-events: write
-      actions: read
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-
-    - name: Install jq
-      run: sudo apt-get update && sudo apt-get install -y jq
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -63,39 +59,23 @@ jobs:
         cache-from: |
           type=registry,ref=docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache
 
-    - name: Run Trivy vulnerability scanner
+    - name: Run Trivy vulnerability scanner (table format)
+      run: |
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+          aquasec/trivy:latest image \
+          --severity CRITICAL \
+          --exit-code 1 \
+          --format table \
+          scan-image:latest
+
+    - name: Run Trivy for SARIF (all severities for reporting)
       uses: aquasecurity/trivy-action@master
       with:
         image-ref: 'scan-image:latest'
         format: 'sarif'
         output: 'trivy-results.sarif'
-        severity: 'CRITICAL'
+        severity: 'CRITICAL,HIGH,MEDIUM,LOW'
         exit-code: '0'
-
-    - name: Check vulnerabilities and upload SARIF
-      run: |
-        if [ -f trivy-results.sarif ]; then
-          echo "✅ SARIF file created successfully"
-          # Sprawdź czy są wyniki
-          if [ -s trivy-results.sarif ]; then
-            ISSUES=$(jq '.runs[0].results | length' trivy-results.sarif 2>/dev/null || echo "0")
-            echo "Found $ISSUES critical vulnerabilities"
-            if [ "$ISSUES" -gt "0" ]; then
-              echo "❌ Critical vulnerabilities found:"
-              jq -r '.runs[0].results[].message.text' trivy-results.sarif 2>/dev/null || echo "Could not parse vulnerability details"
-              echo "Blocking push due to security issues"
-              exit 1
-            else
-              echo "✅ No critical vulnerabilities found"
-            fi
-          else
-            echo "⚠️ SARIF file is empty, creating minimal structure"
-            echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "trivy"}}, "results": []}]}' > trivy-results.sarif
-          fi
-        else
-          echo "⚠️ SARIF file not found, creating empty one"
-          echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "trivy"}}, "results": []}]}' > trivy-results.sarif
-        fi
 
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
@@ -123,4 +103,4 @@ jobs:
         echo "- **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Platforms**: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
         echo "- **Cache**: docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache" >> $GITHUB_STEP_SUMMARY
-        echo "- **Security**: Only critical vulnerabilities scanned" >> $GITHUB_STEP_SUMMARY
+        echo "- **Security**: Only CRITICAL vulnerabilities block push" >> $GITHUB_STEP_SUMMARY
