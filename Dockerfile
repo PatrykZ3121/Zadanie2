@@ -1,5 +1,5 @@
-# Użycie obrazu Python 3.9
-FROM python:3.9-slim AS builder
+# Użycie nowszego obrazu Python 3.11
+FROM python:3.11-slim AS builder
 
 # Informacja o autorze obrazu
 LABEL org.opencontainers.image.authors="Patryk Zygmunt"
@@ -8,6 +8,7 @@ LABEL org.opencontainers.image.authors="Patryk Zygmunt"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     curl && \
+    apt-get upgrade -y && \
     rm -rf /var/lib/apt/lists/*
 
 # Ustawienie katalogu roboczego na /app
@@ -16,25 +17,27 @@ WORKDIR /app
 # Kopiowanie pliku requirements.txt do katalogu roboczego
 COPY requirements.txt .
 
-# Instalacja zależności Python z pliku requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# Instalacja najnowszych zależności Python
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Użycie obrazu Python 3.9 
-FROM python:3.9-slim
+# Użycie nowszego obrazu Python 3.11
+FROM python:3.11-slim
 
 # Informacja o autorze obrazu
 LABEL org.opencontainers.image.authors="Patryk Zygmunt"
 
-# Instalacja curl dla healthcheck
+# Instalacja curl dla healthcheck i aktualizacja systemu
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl && \
+    apt-get upgrade -y && \
     rm -rf /var/lib/apt/lists/*
 
 # Ustawienie katalogu roboczego na /app
 WORKDIR /app
 
 # Kopiowanie zainstalowanych pakietów Python z etapu budowania
-COPY --from=builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 
 # Kopiowanie wszystkich plików projektu do katalogu roboczego
 COPY . .
