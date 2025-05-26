@@ -59,25 +59,15 @@ jobs:
         cache-from: |
           type=registry,ref=docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache
 
-    - name: Run Trivy vulnerability scanner (CRITICAL only - blocks push)
-      run: |
-        echo "🔍 Scanning for CRITICAL vulnerabilities..."
-        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-          aquasec/trivy:latest image \
-          --severity CRITICAL \
-          --exit-code 1 \
-          --format table \
-          scan-image:latest
-        echo "✅ No CRITICAL vulnerabilities found - proceeding with build"
-
-    - name: Run Trivy for SARIF report (all severities)
+    - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
         image-ref: 'scan-image:latest'
         format: 'sarif'
         output: 'trivy-results.sarif'
-        severity: 'CRITICAL,HIGH,MEDIUM,LOW'
-        exit-code: '0'
+        severity: 'CRITICAL,HIGH'
+        exit-code: '1'
+        trivyignores: '.trivyignore'
 
     - name: Upload Trivy scan results to GitHub Security tab
       uses: github/codeql-action/upload-sarif@v3
@@ -105,4 +95,4 @@ jobs:
         echo "- **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Platforms**: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
         echo "- **Cache**: docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache" >> $GITHUB_STEP_SUMMARY
-        echo "- **Security**: CRITICAL vulnerabilities block push, all levels reported" >> $GITHUB_STEP_SUMMARY
+        echo "- **Security**: CVE scanning with ignored will_not_fix vulnerabilities" >> $GITHUB_STEP_SUMMARY
