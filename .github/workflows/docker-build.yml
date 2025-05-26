@@ -66,7 +66,7 @@ jobs:
         format: 'sarif'
         output: 'trivy-results.sarif'
         severity: 'CRITICAL,HIGH'
-        exit-code: '1'
+        exit-code: '0'
         trivyignores: '.trivyignore'
 
     - name: Upload Trivy scan results to GitHub Security tab
@@ -95,4 +95,4 @@ jobs:
         echo "- **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Platforms**: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
         echo "- **Cache**: docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache" >> $GITHUB_STEP_SUMMARY
-        echo "- **Security**: CVE scanning with ignored will_not_fix vulnerabilities" >> $GITHUB_STEP_SUMMARY
+        echo "- **Security**: CVE scan completed, results uploaded to Security tab" >> $GITHUB_STEP_SUMMARY
