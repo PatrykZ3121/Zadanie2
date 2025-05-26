@@ -65,8 +65,6 @@ jobs:
         tags: scan-image:latest
         cache-from: |
           type=registry,ref=docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache
-        cache-to: |
-          type=registry,ref=docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache,mode=max
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
