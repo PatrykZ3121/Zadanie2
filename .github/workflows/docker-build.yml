@@ -10,7 +10,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  DOCKERHUB_CACHE_REPO: ${{ github.repository_owner }}/weather-app-cache
+  DOCKERHUB_CACHE_REPO: patryk3121/weather-app-cache
 
 jobs:
   build:
@@ -19,6 +19,7 @@ jobs:
       contents: read
       packages: write
       security-events: write
+      actions: read
 
     steps:
     - name: Checkout repository
@@ -26,6 +27,8 @@ jobs:
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
+      with:
+        driver: docker-container
 
     - name: Log in to Container Registry
       uses: docker/login-action@v3
@@ -53,44 +56,44 @@ jobs:
           type=semver,pattern={{major}}
           type=raw,value=latest,enable={{is_default_branch}}
 
-    - name: Build and push Docker image
+    - name: Build Docker image for scanning
       uses: docker/build-push-action@v5
-      id: build
       with:
         context: .
-        platforms: linux/amd64,linux/arm64
-        push: false
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+        platforms: linux/amd64
+        load: true
+        tags: scan-image:latest
         cache-from: |
           type=registry,ref=docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache
         cache-to: |
           type=registry,ref=docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache,mode=max
-        outputs: type=docker,dest=/tmp/image.tar
-
-    - name: Load image for scanning
-      run: |
-        docker load --input /tmp/image.tar
-        IMAGE_ID=$(docker images --format "table {{.Repository}}:{{.Tag}}" | grep -v REPOSITORY | head -n1 | tr -d ' ')
-        echo "IMAGE_ID=$IMAGE_ID" >> $GITHUB_ENV
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ env.IMAGE_ID }}
+        image-ref: 'scan-image:latest'
         format: 'sarif'
         output: 'trivy-results.sarif'
         severity: 'CRITICAL,HIGH'
         exit-code: '0'
 
-    - name: Check if SARIF file exists
+    - name: Check if SARIF file exists and validate
       run: |
         if [ -f trivy-results.sarif ]; then
           echo "SARIF file exists"
-          ls -la trivy-results.sarif
+          # Sprawdź czy są krytyczne vulnerabilities
+          ISSUES=$(jq '.runs[0].results | length' trivy-results.sarif 2>/dev/null || echo "0")
+          echo "Found $ISSUES critical/high vulnerabilities"
+          if [ "$ISSUES" -gt "0" ]; then
+            echo "❌ Critical or high vulnerabilities found - blocking push"
+            jq '.runs[0].results[].message.text' trivy-results.sarif || true
+            exit 1
+          else
+            echo "✅ No critical/high vulnerabilities found"
+          fi
         else
-          echo "SARIF file does not exist, creating empty one"
-          echo '{"version": "2.1.0", "runs": []}' > trivy-results.sarif
+          echo "⚠️ SARIF file not found - creating empty one"
+          echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "trivy"}}, "results": []}]}' > trivy-results.sarif
         fi
 
     - name: Upload Trivy scan results to GitHub Security tab
@@ -99,20 +102,7 @@ jobs:
       with:
         sarif_file: 'trivy-results.sarif'
 
-    - name: Check for critical vulnerabilities
-      run: |
-        if [ -f trivy-results.sarif ]; then
-          # Sprawdź czy są krytyczne lub wysokie vulnerabilities
-          CRITICAL_HIGH=$(jq '.runs[0].results | length' trivy-results.sarif 2>/dev/null || echo "0")
-          if [ "$CRITICAL_HIGH" -gt "0" ]; then
-            echo "Found $CRITICAL_HIGH critical/high vulnerabilities"
-            exit 1
-          else
-            echo "No critical/high vulnerabilities found"
-          fi
-        fi
-
-    - name: Push Docker image (only if no critical/high vulnerabilities)
+    - name: Build and push multi-arch Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
@@ -124,3 +114,12 @@ jobs:
           type=registry,ref=docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache
         cache-to: |
           type=registry,ref=docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache,mode=max
+
+    - name: Generate build summary
+      run: |
+        echo "## ✅ Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **Image**: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Platforms**: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
+        echo "- **Cache**: docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache" >> $GITHUB_STEP_SUMMARY
+        echo "- **Security**: No critical/high vulnerabilities" >> $GITHUB_STEP_SUMMARY
