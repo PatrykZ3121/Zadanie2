@@ -1,98 +1,98 @@
-name: Build and Push Multi-Arch Docker Image
+name: Build and Push Multi-Arch Docker Image  # Nazwa workflow wyświetlana w GitHub Actions
 
-on:
-  push:
-    branches: [ main, master ]
-    tags: [ 'v*' ]
+on:  # Definiuje kiedy workflow ma się uruchomić
+  push:  # Uruchomienie przy push do repozytorium
+    branches: [ main, master ]  # Tylko dla gałęzi main lub master
+    tags: [ 'v*' ]  # Lub przy utworzeniu tagu zaczynającego się od 'v' (np. v1.0.0)
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-  DOCKERHUB_CACHE_REPO: patryk3121/weather-app-cache
+env:  # Zmienne środowiskowe dostępne w całym workflow
+  REGISTRY: ghcr.io  # Adres GitHub Container Registry
+  IMAGE_NAME: ${{ github.repository }}  # Nazwa obrazu bazowana na nazwie repozytorium (owner/repo)
+  DOCKERHUB_CACHE_REPO: patryk3121/weather-app-cache  # Repozytorium na DockerHub do przechowywania cache
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      security-events: write
+jobs:  # Definicja zadań do wykonania
+  build:  # Nazwa zadania
+    runs-on: ubuntu-latest  # System operacyjny dla maszyny wirtualnej
+    permissions:  # Uprawnienia potrzebne dla tego zadania
+      contents: read  # Odczyt zawartości repozytorium
+      packages: write  # Zapis do GitHub Packages (GHCR)
+      security-events: write  # Zapis raportów bezpieczeństwa
 
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    steps:  # Lista kroków do wykonania
+    - name: Checkout repository  # Pobranie kodu źródłowego z repozytorium
+      uses: actions/checkout@v4  # Użycie gotowej akcji do checkout
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+    - name: Set up Docker Buildx  # Konfiguracja Docker Buildx dla multi-arch builds
+      uses: docker/setup-buildx-action@v3  # Akcja do konfiguracji Buildx
       with:
-        driver: docker-container
+        driver: docker-container  # Użycie drivera kontenerowego dla lepszej wydajności
 
-    - name: Log in to Container Registry
-      uses: docker/login-action@v3
+    - name: Log in to Container Registry  # Logowanie do GitHub Container Registry
+      uses: docker/login-action@v3  # Akcja do logowania do rejestru
       with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        registry: ${{ env.REGISTRY }}  # Adres rejestru (ghcr.io)
+        username: ${{ github.actor }}  # Nazwa użytkownika (automatyczna z GitHub)
+        password: ${{ secrets.GITHUB_TOKEN }}  # Token GitHub (automatyczny)
 
-    - name: Log in to Docker Hub (for cache)
-      uses: docker/login-action@v3
+    - name: Log in to Docker Hub (for cache)  # Logowanie do DockerHub dla cache
+      uses: docker/login-action@v3  # Ta sama akcja, inne dane
       with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}  # Nazwa użytkownika DockerHub (z sekretów)
+        password: ${{ secrets.DOCKERHUB_TOKEN }}  # Token DockerHub (z sekretów)
 
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
+    - name: Extract metadata  # Ekstrakcja metadanych dla obrazu Docker
+      id: meta  # ID kroku do referencji w innych krokach
+      uses: docker/metadata-action@v5  # Akcja do generowania metadanych
       with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=raw,value=latest,enable={{is_default_branch}}
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}  # Pełna nazwa obrazu
+        tags: |  # Definicja strategii tagowania
+          type=ref,event=branch  # Tag bazowany na nazwie gałęzi
+          type=raw,value=latest,enable={{is_default_branch}}  # Tag 'latest' tylko dla domyślnej gałęzi
 
-    - name: Build Docker image for scanning
-      uses: docker/build-push-action@v5
+    - name: Build Docker image for scanning  # Budowa obrazu tylko do skanowania bezpieczeństwa
+      uses: docker/build-push-action@v5  # Akcja do budowy i push obrazów
       with:
-        context: .
-        platforms: linux/amd64
-        load: true
-        tags: scan-image:latest
-        cache-from: |
+        context: .  # Kontekst budowy (bieżący katalog)
+        platforms: linux/amd64  # Tylko architektura x86_64 (szybsza do skanowania)
+        load: true  # Załadowanie obrazu do lokalnego Docker daemon
+        tags: scan-image:latest  # Tymczasowy tag dla skanowania
+        cache-from: |  # Źródło cache do przyspieszenia budowy
           type=registry,ref=docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache
 
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
+    - name: Run Trivy vulnerability scanner  # Skanowanie obrazu pod kątem vulnerabilities
+      uses: aquasecurity/trivy-action@master  # Akcja Trivy do skanowania bezpieczeństwa
       with:
-        image-ref: 'scan-image:latest'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-        severity: 'CRITICAL,HIGH'
-        exit-code: '0'
-        trivyignores: '.trivyignore'
+        image-ref: 'scan-image:latest'  # Referencja do obrazu do skanowania
+        format: 'sarif'  # Format raportu (SARIF dla GitHub Security)
+        output: 'trivy-results.sarif'  # Nazwa pliku wyjściowego
+        severity: 'CRITICAL,HIGH'  # Poziomy zagrożeń do wykrywania
+        exit-code: '0'  # Nie przerywaj workflow przy znalezieniu vulnerabilities
+        trivyignores: '.trivyignore'  # Plik z listą CVE do zignorowania
 
-    - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v3
-      if: always()
+    - name: Upload Trivy scan results to GitHub Security tab  # Upload raportu do GitHub Security
+      uses: github/codeql-action/upload-sarif@v3  # Akcja do upload plików SARIF
+      if: always()  # Wykonaj zawsze, nawet jeśli poprzednie kroki się nie powiodły
       with:
-        sarif_file: 'trivy-results.sarif'
+        sarif_file: 'trivy-results.sarif'  # Plik SARIF do upload
 
-    - name: Build and push multi-arch Docker image
-      uses: docker/build-push-action@v5
+    - name: Build and push multi-arch Docker image  # Budowa i push finalnego obrazu multi-arch
+      uses: docker/build-push-action@v5  # Ta sama akcja co wcześniej
       with:
-        context: .
-        platforms: linux/amd64,linux/arm64
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: |
+        context: .  # Kontekst budowy (bieżący katalog)
+        platforms: linux/amd64,linux/arm64  # Obie architektury: x86_64 i ARM64
+        push: true  # Push obrazu do rejestru
+        tags: ${{ steps.meta.outputs.tags }}  # Tagi wygenerowane w kroku 'meta'
+        labels: ${{ steps.meta.outputs.labels }}  # Etykiety wygenerowane w kroku 'meta'
+        cache-from: |  # Źródło cache z DockerHub
           type=registry,ref=docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache
-        cache-to: |
+        cache-to: |  # Zapis cache do DockerHub
           type=registry,ref=docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache,mode=max
 
-    - name: Generate build summary
-      run: |
-        echo "## ✅ Build Summary" >> $GITHUB_STEP_SUMMARY
-        echo "- **Image**: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Platforms**: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
-        echo "- **Cache**: docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache" >> $GITHUB_STEP_SUMMARY
-        echo "- **Security**: CVE scan completed, results uploaded to Security tab" >> $GITHUB_STEP_SUMMARY
+    - name: Generate build summary  # Generowanie podsumowania w GitHub Actions
+      run: |  # Wykonanie poleceń shell
+        echo "## ✅ Build Summary" >> $GITHUB_STEP_SUMMARY  # Dodanie nagłówka do podsumowania
+        echo "- **Image**: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" >> $GITHUB_STEP_SUMMARY  # Nazwa obrazu
+        echo "- **Tags**: ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY  # Lista tagów
+        echo "- **Platforms**: linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY  # Obsługiwane architektury
+        echo "- **Cache**: docker.io/${{ env.DOCKERHUB_CACHE_REPO }}:buildcache" >> $GITHUB_STEP_SUMMARY  # Lokalizacja cache
+        echo "- **Security**: CVE scan completed, results uploaded to Security tab" >> $GITHUB_STEP_SUMMARY  # Status bezpieczeństwa

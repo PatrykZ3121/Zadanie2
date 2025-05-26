@@ -44,12 +44,12 @@ text
 ### 2. Z GitHub Container Registry (GHCR)
 
 #### Pobranie obrazu:
-docker pull ghcr.io/twoja_nazwa_github/weather-app-zadanie1:latest
+docker pull ghcr.io/twoja_nazwa_github/zadanie2:latest
 
 text
 
 #### Uruchomienie:
-docker run -d -p 5000:5000 --name ghcr-weather-app ghcr.io/twoja_nazwa_github/weather-app-zadanie1:latest
+docker run -d -p 5000:5000 ghcr.io/patrykz3121/zadanie2:latest
 
 text
 
@@ -93,3 +93,11 @@ text
 ### Wydajność:
 - Cache redukuje czas buildów o ~70%
 - Obraz multi-arch waży ~25% mniej niż standardowy
+
+---
+
+## Zrzuty ekranu
+
+![Screenshot 1](./s1.png)
+
+![Screenshot 2](./s2.png)
