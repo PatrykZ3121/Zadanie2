@@ -2,7 +2,7 @@ from flask import Flask, request, render_template
 import datetime
 import logging
 
-# Konfiguracja loggera do rejestrowania informacji w konsoli
+# Konfiguracja loggera do rejestrowania informacji w konsoliiiii
 logging.basicConfig(level=logging.INFO)
 
 # Utworzenie loggera z nazwą aplikacji
