@@ -67,7 +67,7 @@ jobs:  # Definicja zadań do wykonania
         output: 'trivy-results.sarif'  # Nazwa pliku wyjściowego
         severity: 'CRITICAL,HIGH'  # Poziomy zagrożeń do wykrywania
         exit-code: '0'  # Nie przerywaj workflow przy znalezieniu vulnerabilities
-        trivyignores: '.trivyignore'  # Plik z listą CVE do zignorowania
+        # trivyignores: '.trivyignore'  # Plik z listą CVE do zignorowania
 
     - name: Upload Trivy scan results to GitHub Security tab  # Upload raportu do GitHub Security
       uses: github/codeql-action/upload-sarif@v3  # Akcja do upload plików SARIF
